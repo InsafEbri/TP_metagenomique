@@ -71,22 +71,57 @@ def get_arguments():
     return parser.parse_args()
 
 def read_fasta(amplicon_file, minseqlen):
-    pass
+     with gzip.open(amplicon_file, "rt") as file:
+        for line in file:
+            if line.startswith('>'):
+                if len(seq) >= minseqlen:
+                    yield seq
+                seq  = ""
+            else:
+                seq+=line.strip()
+        if len(seq) >= minseqlen:
+            yield seq
 
 
 def dereplication_fulllength(amplicon_file, minseqlen, mincount):
-    pass
+    dico = {}
+    for seq in read_fasta(amplicon_file, minseqlen):
+        if seq not in dico:
+            dico[seq] =  dico.get(seq, 0) + 1
+        else:
+            dico[seq] += 1
+    for i, j in sorted(dico.items(), key = lambda item: item[1], reverse = True):
+        if j >= mincount:
+            yield [i, j]
+
 
 def get_identity(alignment_list):
     """Prend en une liste de séquences alignées au format ["SE-QUENCE1", "SE-QUENCE2"]
     Retourne le pourcentage d'identite entre les deux."""
-    pass
+    iden = 0
+    for i in range(len(alignment_list[0])):
+        if alignment_list[0][i] == alignment_list[1][i]:
+            iden += 1
+    return iden / len(alignment_list[0])*100
+
 
 def abundance_greedy_clustering(amplicon_file, minseqlen, mincount, chunk_size, kmer_size):
-    pass
+    seq_OTU = dereplication_fulllength(amplicon_file, minseqlen, mincount)
+    OTU_list = [seq_OTU[0]]
+    for i in seq_OTU[1:]:
+        align_list = []
+        for j in OTU_list:
+            align_list.append(get_identity(nw.global_align(i[0], j[0], gap_open=-1, gap_extend=-1, matrix=os.path.abspath(os.path.join(os.path.dirname(__file__),"MATCH")))))
+        
+        if max(align_list) <= 97:
+            OTU_list.append(i)
+    return OTU_list
 
 def write_OTU(OTU_list, output_file):
-    pass
+     with open(output_file, "w") as file:
+        for i in range(len(OTU_list)):
+            file.write(f">OTU_{i+1} occurrence:{OTU_list[i][1]}\n")
+        file.write(f"{textwrap.fill(OTU_list[i][0], width=80)}\n")
 
 #==============================================================
 # Main program
